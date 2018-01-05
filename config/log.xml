@@ -1,0 +1,20 @@
+<seelog>
+	<outputs formatid="main">
+		<filter levels="info,critical">
+			<file path="log/log.log" />
+		</filter>
+		<filter levels="debug">
+			<file path="log/debug.log" />
+		</filter>
+		<filter levels="error">
+			<file path="log/error.log" />
+		</filter>
+		<buffered size="10000" flushperiod="1000">
+			<rollingfile type="date" filename="log/main.log" datepattern="2006.01.02" fullname="true" maxrolls="30"/>
+		</buffered>
+
+	</outputs>
+	<formats>
+		<format id="main" format="%Date/%Time [%LEV] %Msg%n"/>
+	</formats>
+</seelog>
