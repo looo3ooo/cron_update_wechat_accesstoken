@@ -28,10 +28,11 @@ func InitPool()(m *SqlModel){
 	m = new(SqlModel)
 	var err error
 	ConfigCentor := goini.SetConfig("./config/config.ini")
+	ip := ConfigCentor.GetValue("mysql", "ip")
 	uid := ConfigCentor.GetValue("mysql", "uid")
 	pwd := ConfigCentor.GetValue("mysql", "pwd")
 	dbname := ConfigCentor.GetValue("mysql", "databasename")
-	data_str := fmt.Sprintf("%s:%s@/%s?charset=utf8", uid, pwd, dbname)
+	data_str := fmt.Sprintf("%s:%s@(%s:3306)/%s?charset=utf8", uid, pwd, ip, dbname)
 	tools.LogInfo("-----数据库连接----" + data_str)
 	m.db, err = sql.Open("mysql", data_str)
 
@@ -167,8 +168,8 @@ func (m *SqlModel) Limit(size ...int64) *SqlModel {
 }
 
 func (m *SqlModel) Create(param map[string] interface{}) (num int64, err error){
-	defer m.InitModel()
 	if m.db == nil {
+		m.InitModel()
 		return 0, errors.New("mysql not connect")
 	}
 	var keys []interface{}
@@ -192,12 +193,13 @@ func (m *SqlModel) Create(param map[string] interface{}) (num int64, err error){
 	// INSERT INTO table(colume1,colume2,colume3) values(?,?,?)
 	num, err = m.Insert(sql,values ...)
 
+	m.InitModel()
 	return num, err
 }
 
 func (m *SqlModel) Insert(sql string,values ... interface{})(int64, error) {
-	defer m.InitModel()
 	if m.db == nil {
+		m.InitModel()
 		return 0,errors.New("db is Null")
 	}
 
@@ -210,6 +212,7 @@ func (m *SqlModel) Insert(sql string,values ... interface{})(int64, error) {
 	tools.LogInfo(values ...)
 	if err != nil {
 		tools.LogError("Insert error: ", err.Error())
+		m.InitModel()
 		return 0, err
 	}
 
@@ -218,16 +221,17 @@ func (m *SqlModel) Insert(sql string,values ... interface{})(int64, error) {
 
 	if err != nil {
 		tools.LogError("Insert error: ", err.Error())
+		m.InitModel()
 		return 0, err
 	}
 
 	id, err := res.LastInsertId()
 
+	m.InitModel()
 	return id, err
 }
 
 func (m *SqlModel) Save(data map[string] interface{}) (int64, error) {
-	defer m.InitModel()
 	//构造sql语句
 	// UPDATE table set colume1=?,colume2=?,colume3=? + m.where
 	var setFileds string
@@ -250,12 +254,13 @@ func (m *SqlModel) Save(data map[string] interface{}) (int64, error) {
 	sql := "UPDATE " + m.tablename + " SET " + setFileds + m.where
 	RowsAffected, err := m.Update(sql,vals ...)
 
+	m.InitModel()
 	return RowsAffected, err
 }
 
 func (m *SqlModel) Update(sql string, values ...interface{}) (int64, error) {
-	defer m.InitModel()
 	if m.db == nil {
+		m.InitModel()
 		return 0, errors.New("db is Null")
 	}
 	dbi, err := m.db.Prepare(sql)
@@ -265,6 +270,7 @@ func (m *SqlModel) Update(sql string, values ...interface{}) (int64, error) {
 	tools.LogInfo(values ...)
 	if err != nil {
 		tools.LogError("UPDATE error:", err.Error())
+		m.InitModel()
 		return 0, err
 	}
 
@@ -272,32 +278,34 @@ func (m *SqlModel) Update(sql string, values ...interface{}) (int64, error) {
 
 	if err != nil {
 		tools.LogError("UPDATE error:", err.Error())
+		m.InitModel()
 		return 0, err
 	}
 
 	RowsAffected, err := res.RowsAffected()
 
+	m.InitModel()
 	return RowsAffected, err
 }
 
 func (m *SqlModel)Delete() (int64, error) {
-	defer m.InitModel()
 	//构造sql语句
 	// DELETE FROM  table  WHERE colume4=? and colume5 = ?
 
 	if m.where == " where 1 "{   //防止整个表删除
 		tools.LogError("Delete error:", "delete语句必须带有有效where条件")
+		m.InitModel()
 		return 0,nil
 	}
 
 	sql := "DELETE FROM " + m.tablename + m.where
 	RowsAffected, err := m.SqlDelete(sql,m.whereParam ...)
 
+	m.InitModel()
 	return RowsAffected, err
 }
 
 func (m *SqlModel) SqlDelete(sql string,vals ... interface{}) (int64, error){
-	defer m.InitModel()
 	dbi, err := m.db.Prepare(sql)
 	defer dbi.Close()
 
@@ -305,6 +313,7 @@ func (m *SqlModel) SqlDelete(sql string,vals ... interface{}) (int64, error){
 	tools.LogInfo(vals ...)
 	if err != nil {
 		tools.LogError("DELETE error:", err.Error())
+		m.InitModel()
 		return 0, err
 	}
 
@@ -312,37 +321,39 @@ func (m *SqlModel) SqlDelete(sql string,vals ... interface{}) (int64, error){
 
 	if err != nil {
 		tools.LogError("DELETE error:", err.Error())
+		m.InitModel()
 		return 0, err
 	}
 
 	RowsAffected, err := res.RowsAffected()
 
+	m.InitModel()
 	return RowsAffected, err
 }
 
 func(m *SqlModel) FindAll()([]map[string]interface {}, error) {
-	defer m.InitModel()
 	sql := "SELECT " + m.columnstr + " FROM " + m.tablename + m.join + m.where + m.orderby + m.limit
 	rowslist,err := m.Query(sql,m.whereParam...)
 
+	m.InitModel()
 	return rowslist,err
 }
 
 func(m *SqlModel) FindOne()(map[string]interface{}, error) {
-	defer m.InitModel()
 	sql := "SELECT " + m.columnstr + " FROM " + m.tablename + m.join + m.where + m.orderby + m.limit
 	row,err := m.QueryRow(sql,m.whereParam...)
 
+	m.InitModel()
 	return row,err
 }
 
 func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interface {}, error) {
-	defer m.InitModel()
 	tools.LogInfo(sql)
 	tools.LogInfo(vals ...)
 	dbi,err := m.db.Prepare(sql)
 	if err != nil {
 		tools.LogInfo(err.Error())
+		m.InitModel()
 		return nil, err
 	}
 
@@ -351,6 +362,7 @@ func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interfac
 
 	if err != nil {
 		tools.LogInfo(err.Error())
+		m.InitModel()
 		return nil, err
 	}
 
@@ -358,6 +370,7 @@ func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interfac
 	//构造scanArgs、values两个数组，scanArgs的每个值指向values相应值的地址
 	columns, err := rows.Columns()
 	if err != nil {
+		m.InitModel()
 		return nil, err
 	}
 	valuePtrs := make([]interface{}, len(columns))  //地址
@@ -389,17 +402,18 @@ func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interfac
 		rowslist = append(rowslist,record)
 	}
 
+	m.InitModel()
 	return rowslist, err
 
 }
 
 func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interface{}, error){
-	defer m.InitModel()
 	tools.LogInfo(sql)
 	tools.LogInfo(vals ...)
 	dbi,err := m.db.Prepare(sql)
 	if err != nil {
 		tools.LogInfo(err.Error())
+		m.InitModel()
 		return nil, err
 	}
 
@@ -408,6 +422,7 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 
 	if err != nil {
 		tools.LogInfo(err.Error())
+		m.InitModel()
 		return nil, err
 	}
 
@@ -415,6 +430,7 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 	//构造scanArgs、values两个数组，scanArgs的每个值指向values相应值的地址
 	columns, err := rows.Columns()
 	if err != nil {
+		m.InitModel()
 		return nil, err
 	}
 	valuePtrs := make([]interface{}, len(columns))  //地址
@@ -429,6 +445,7 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 		//将行数据保存到record字典
 		err = rows.Scan(valuePtrs...)
 		if err != nil {
+			m.InitModel()
 			return nil,err
 		}
 		for i, col := range values {
@@ -446,17 +463,18 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 		break
 	}
 
+	m.InitModel()
 	return record, err
 }
 
 func (m *SqlModel) Count()(int64, error){
-	defer m.InitModel()
 	m.columnstr = "count(*)"
 	sql := "SELECT " + m.columnstr + " FROM " + m.tablename + m.join + m.where
 	dbi,err := m.db.Prepare(sql)
 	defer dbi.Close()
 	if err != nil {
 		tools.LogInfo(err.Error())
+		m.InitModel()
 		return 0, err
 	}
 
@@ -465,8 +483,10 @@ func (m *SqlModel) Count()(int64, error){
 
 	if err != nil {
 		tools.LogInfo(err.Error())
+		m.InitModel()
 		return 0, err
 	}
+	m.InitModel()
 	return count,err
 }
 

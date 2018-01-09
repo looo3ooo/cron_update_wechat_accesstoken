@@ -19,7 +19,7 @@ func (this *AutoUpdateToken) Index(){
 	if err != nil {
 		tools.LogError("mysql error:",err.Error())
 	}
-	fmt.Println("定时任务")
+	fmt.Println("定时任务:updatetoken")
 	tools.LogInfo("获取所有商户微信配置信息：",wechat)
 
 	this.getToken = new(GetToken)

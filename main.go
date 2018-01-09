@@ -18,7 +18,7 @@ func main() {
 	crontab.InitModel()
 
 	c := cron.New()
-	spec := "*/3 * * * * *"
+	spec := "0 */5 * * * *"
 	c.AddFunc(spec, func() {
 		tools.LogInfo("cron running autoUpdateToken:")
 		updateTokenController := new(crontab.AutoUpdateToken)
