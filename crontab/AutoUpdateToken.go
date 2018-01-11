@@ -7,15 +7,17 @@ import (
 	"strconv"
 	"reflect"
 	"goini"
+	"updatetoken/mysql"
 )
 
 type AutoUpdateToken struct {
 	SIGNKEY string
 	COMPONENT_ATTRIBUTE		[]map[string]string
 	getToken *GetToken
+	Model *gomysql.SqlModel
 }
 
-func (this *AutoUpdateToken) AttrInit(){
+func (this *AutoUpdateToken) AttrInit() *AutoUpdateToken{
 	ConfigCentor := goini.SetConfig("./config/config.ini")
 	signkey := ConfigCentor.GetValue("autoupdatetoken", "signkey")
 	component_appid1 := ConfigCentor.GetValue("autoupdatetoken", "component_appid1")
@@ -29,12 +31,17 @@ func (this *AutoUpdateToken) AttrInit(){
 
 	this.COMPONENT_ATTRIBUTE = append(this.COMPONENT_ATTRIBUTE,COMPONENT_ATTRIBUTE1)
 
+	this.Model = pool.NewModel()
+
 	this.getToken = new(GetToken)
-	this.getToken.AttrInit()
+	this.getToken = this.getToken.AttrInit()
+
+	 return this
 }
 
 func (this *AutoUpdateToken) Index(){
-	wechat,err := pool.Table("wechat").FindAll()
+
+	wechat,err := this.Model.Table("wechat").FindAll()
 	if err != nil {
 		tools.LogError("mysql error:",err.Error())
 	}
@@ -43,14 +50,14 @@ func (this *AutoUpdateToken) Index(){
 
 	var wechatAttribute map[string]interface{}
 	for _,v := range wechat {
-		wechatAttribute,err = pool.Table("wechat_attribute").Where("psm_id","=",v["psm_id"]).FindOne()
+		wechatAttribute,err = this.Model.Table("wechat_attribute").Where("psm_id","=",v["psm_id"]).FindOne()
 		tools.LogInfo(wechatAttribute)
 
 		//过期或者为空获取新数据，否则将原有数据填入
-		//timeStamp := time.Now().Unix()
+		timeStamp := time.Now().Unix()
 
 		//access_token
-		/*if len(wechatAttribute) != 0  && this.timeToUnix(this.toString(v["access_token_expires_time"])) + this.toInt64(v["access_token_expires_in"]) - 30*60 < timeStamp {
+		if len(wechatAttribute) != 0  && this.timeToUnix(this.toString(v["access_token_expires_time"])) + this.toInt64(v["access_token_expires_in"]) - 30*60 < timeStamp {
 			if v["appid"] != nil && v["appid"].(string) != ""{
 				newAccessToken,err := this.updateAccessToken(v,wechatAttribute)
 				if err != nil {
@@ -59,10 +66,10 @@ func (this *AutoUpdateToken) Index(){
 					v["access_token"] = newAccessToken
 				}
 			}
-		}*/
+		}
 
 		// jsapi_ticket
-		/*if len(wechatAttribute) != 0  && this.timeToUnix(this.toString(v["jsapi_ticket_expires_time"])) + this.toInt64(v["jsapi_ticket_expires_in"]) - 30*60 < timeStamp {
+		if len(wechatAttribute) != 0  && this.timeToUnix(this.toString(v["jsapi_ticket_expires_time"])) + this.toInt64(v["jsapi_ticket_expires_in"]) - 30*60 < timeStamp {
 			if v["appid"] != nil && v["appid"].(string) != "" {
 				this.updateJsapiTicket(v,wechatAttribute)
 			}
@@ -81,11 +88,11 @@ func (this *AutoUpdateToken) Index(){
 			if v["app_appid"] != nil && v["app_appid"].(string) != "" {
 				this.updateAppAccessToken(v,wechatAttribute)
 			}
-		}*/
+		}
 	}
 
-	/*for _,ATTR := range this.COMPONENT_ATTRIBUTE {
-		wechatComponent,err := pool.Table("wechat_component").Where("component_appid","=",ATTR["component_appid"]).FindOne()
+	for _,ATTR := range this.COMPONENT_ATTRIBUTE {
+		wechatComponent,err := this.Model.Table("wechat_component").Where("component_appid","=",ATTR["component_appid"]).FindOne()
 		if err != nil {
 			tools.LogInfo("Update component error:",err.Error())
 		}
@@ -100,7 +107,7 @@ func (this *AutoUpdateToken) Index(){
 		if len(wechatComponent) != 0 && this.timeToUnix(this.toString(wechatComponent["component_pre_auth_code_expires_time"])) + this.toInt64(wechatComponent["component_pre_auth_code_expires_in"]) - 5*60 < timeStamp {
 			this.updateComponentPreAuthCode(wechatComponent["component_access_token"],ATTR["component_appid"],ATTR["component_app_secret"],wechatComponent["component_verify_ticket"])
 		}
-	}*/
+	}
 
 	tools.LogInfo("--------执行完毕---------")
 
@@ -132,7 +139,7 @@ func (this *AutoUpdateToken) updateAccessToken(wechat map[string]interface{},wec
 	data["access_token"] = resObj["access_token"].(string)
 	data["access_token_expires_in"] = resObj["expires_in"].(float64)
 	data["access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-	num,err := pool.Table("wechat").Where("appid","=",wechat["appid"]).Save(data)
+	num,err := this.Model.Table("wechat").Where("appid","=",wechat["appid"]).Save(data)
 
 	if err != nil {
 		tools.LogError("更新accesstoken失败：",err.Error())
@@ -171,7 +178,7 @@ func (this *AutoUpdateToken) updateAppAccessToken(wechat map[string]interface{},
 	data["app_access_token"] = resObj["access_token"].(string)
 	data["app_access_token_expires_in"] = resObj["expires_in"].(float64)
 	data["app_access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-	num,err := pool.Table("wechat").Where("app_appid","=",wechat["app_appid"]).Save(data)
+	num,err := this.Model.Table("wechat").Where("app_appid","=",wechat["app_appid"]).Save(data)
 
 	if err != nil {
 		tools.LogError("更新app_accesstoken失败：",err.Error())
@@ -208,7 +215,7 @@ func (this *AutoUpdateToken) updateJsapiTicket(wechat map[string]interface{},wec
 	data["jsapi_ticket"] = resObj["ticket"].(string)
 	data["jsapi_ticket_expires_in"] = resObj["expires_in"].(float64)
 	data["jsapi_ticket_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-	num,err := pool.Table("wechat").Where("appid","=",wechat["appid"]).Save(data)
+	num,err := this.Model.Table("wechat").Where("appid","=",wechat["appid"]).Save(data)
 
 	if err != nil {
 		tools.LogError("更新jsapi_ticket失败：",err.Error())
@@ -243,7 +250,7 @@ func (this *AutoUpdateToken) updateApiTicket(wechat map[string]interface{},wecha
 	data["api_ticket"] = resObj["ticket"].(string)
 	data["api_ticket_expires_in"] = resObj["expires_in"].(float64)
 	data["api_ticket_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-	num,err := pool.Table("wechat").Where("appid","=",wechat["appid"]).Save(data)
+	num,err := this.Model.Table("wechat").Where("appid","=",wechat["appid"]).Save(data)
 
 	if err != nil {
 		tools.LogError("更新api_ticket失败：",err.Error())
@@ -279,7 +286,7 @@ func (this *AutoUpdateToken) updateComponentAccessToken(componentAppId,component
 	data["component_access_token"] = resObj["component_access_token"].(string)
 	data["component_access_token_expires_in"] = resObj["expires_in"].(float64)
 	data["component_access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-	num,err := pool.Table("wechat_component").Where("component_appid","=",componentAppId).Save(data)
+	num,err := this.Model.Table("wechat_component").Where("component_appid","=",componentAppId).Save(data)
 
 	if err != nil {
 		tools.LogError("更新component_access_token失败：",err.Error())
@@ -315,7 +322,7 @@ func (this *AutoUpdateToken) updateComponentPreAuthCode(componentAccessToken,com
 	data["component_pre_auth_code"] = resObj["pre_auth_code"].(string)
 	data["component_pre_auth_code_expires_in"] = resObj["expires_in"].(float64)
 	data["component_pre_auth_code_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-	num,err := pool.Table("wechat_component").Where("component_appid","=",componentAppId).Save(data)
+	num,err := this.Model.Table("wechat_component").Where("component_appid","=",componentAppId).Save(data)
 
 	if err != nil {
 		tools.LogError("更新component_pre_auth_code失败：",err.Error())

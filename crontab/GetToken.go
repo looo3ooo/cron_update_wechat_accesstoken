@@ -5,6 +5,7 @@ import (
 	"time"
 	"goini"
 	"encoding/json"
+	"updatetoken/mysql"
 )
 
 type GetToken struct {
@@ -12,15 +13,19 @@ type GetToken struct {
 	ACCESS_TOKEN_INVALID float64
 	ACCESS_TOKEN_EXPIRES_HINT float64
 	COMPONENTA_ACCESS_TOKEN_INVALID float64
+	Model *gomysql.SqlModel
 }
 
-func (this *GetToken) AttrInit(){
+func (this *GetToken) AttrInit() *GetToken{
 	ConfigCentor := goini.SetConfig("./config/config.ini")
 	signkey := ConfigCentor.GetValue("gettoken", "signkey")
 	this.SIGNKEY = signkey
 	this.ACCESS_TOKEN_INVALID = 41001
 	this.ACCESS_TOKEN_EXPIRES_HINT = 42001
 	this.COMPONENTA_ACCESS_TOKEN_INVALID = 41001
+
+	this.Model = pool.NewModel()
+	return this
 }
 
 /**
@@ -137,7 +142,7 @@ func (this *GetToken) updateAccessToken(appId,appSecret string)(string,error) {
 		data := make(map[string]interface{})
 		data["access_token"] = accessTokenObj["access_token"]
 		data["access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-		_,err = pool.Table("wechat").Where("appid","=",appId).Save(data)
+		_,err = this.Model.Table("wechat").Where("appid","=",appId).Save(data)
 		if err != nil {
 			tools.LogError("updateAccessToken Error:",err.Error())
 			return "",err
@@ -233,7 +238,7 @@ func (this *GetToken) updateComponentAccessToken(componentAppId,componentAppSecr
 		data["component_access_token"] = componentAccessTokenObj["component_access_token"]
 		data["component_access_token_expires_in"] = componentAccessTokenObj["expires_in"]
 		data["component_access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-		_,err = pool.Table("wechat_component").Where("component_appid","=",componentAppId).Save(data)
+		_,err = this.Model.Table("wechat_component").Where("component_appid","=",componentAppId).Save(data)
 		if err != nil {
 			tools.LogError("updateComponentAccessToken Error:",err.Error())
 			return "",err

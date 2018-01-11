@@ -20,7 +20,7 @@ func main() {
 	c.AddFunc(spec, func() {
 		tools.LogInfo("cron running autoUpdateToken:")
 		updateTokenController := new(crontab.AutoUpdateToken)
-		updateTokenController.AttrInit()
+		updateTokenController = updateTokenController.AttrInit()
 		updateTokenController.Index()
 	})
 

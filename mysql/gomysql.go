@@ -2,7 +2,6 @@ package gomysql
 
 import (
 	"database/sql"
-	"goini"
 	"fmt"
 	_ "mysql-master"
 	"errors"
@@ -24,33 +23,6 @@ type SqlModel struct {
 	clear					int64
 }
 
-//初始化创建连接池
-func InitPool()(this *SqlModel){
-	this = new(SqlModel)
-	var err error
-	ConfigCentor := goini.SetConfig("./config/config.ini")
-	ip := ConfigCentor.GetValue("mysql", "ip")
-	uid := ConfigCentor.GetValue("mysql", "uid")
-	pwd := ConfigCentor.GetValue("mysql", "pwd")
-	dbname := ConfigCentor.GetValue("mysql", "databasename")
-	data_str := fmt.Sprintf("%s:%s@(%s:3306)/%s?charset=utf8", uid, pwd, ip, dbname)
-	tools.LogInfo("-----数据库连接----" + data_str)
-	this.db, err = sql.Open("mysql", data_str)
-
-	if err != nil {
-		tools.LogError("mysql InitSql error:" + err.Error())
-	}
-
-	this.db.SetMaxOpenConns(11)
-	this.db.SetMaxIdleConns(9)
-	err = this.db.Ping()
-
-	if err != nil {
-		tools.LogError("mysql InitSql error:" + err.Error())
-	}
-	return this
-
-}
 
 //模型初始化
 func (this *SqlModel) Clear()*SqlModel{
@@ -483,6 +455,8 @@ func (this *SqlModel) Count()(int64, error){
 	this.clear = 1
 	this.columnstr = "count(*)"
 	sql := "SELECT " + this.columnstr + " FROM " + this.tablename + this.join + this.where
+	tools.LogInfo(sql)
+	tools.LogInfo(this.whereParam ...)
 	dbi,err := this.db.Prepare(sql)
 	defer dbi.Close()
 	if err != nil {
@@ -500,8 +474,6 @@ func (this *SqlModel) Count()(int64, error){
 	return count,err
 }
 
-func (this *SqlModel) DbClose() {
-	this.db.Close()
-}
+
 
 

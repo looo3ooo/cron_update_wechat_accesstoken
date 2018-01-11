@@ -5,10 +5,9 @@ import "updatetoken/mysql"
 type Cron struct {
 	AutoUpdateToken AutoUpdateToken
 }
-var pool *gomysql.SqlModel
+var pool *gomysql.Pool
 
-func InitModel() *gomysql.SqlModel{
+func InitModel() *gomysql.Pool{
 	pool = gomysql.InitPool()
-	pool.Clear()
 	return pool
 }
