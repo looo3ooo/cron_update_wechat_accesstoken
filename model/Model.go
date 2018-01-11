@@ -10,5 +10,6 @@ var pool *gomysql.SqlModel
 
 func InitModel(){
 	pool = gomysql.InitPool()
-	pool.InitModel()
+	defer
+	pool.Clear()
 }

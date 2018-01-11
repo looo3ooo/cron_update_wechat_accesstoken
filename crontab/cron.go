@@ -7,7 +7,8 @@ type Cron struct {
 }
 var pool *gomysql.SqlModel
 
-func InitModel(){
+func InitModel() *gomysql.SqlModel{
 	pool = gomysql.InitPool()
-	pool.InitModel()
+	pool.Clear()
+	return pool
 }

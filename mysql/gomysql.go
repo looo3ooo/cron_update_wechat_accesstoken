@@ -21,11 +21,12 @@ type SqlModel struct {
 	orderby 				string
 	limit 					string
 	join 					string
+	clear					int64
 }
 
 //初始化创建连接池
-func InitPool()(m *SqlModel){
-	m = new(SqlModel)
+func InitPool()(this *SqlModel){
+	this = new(SqlModel)
 	var err error
 	ConfigCentor := goini.SetConfig("./config/config.ini")
 	ip := ConfigCentor.GetValue("mysql", "ip")
@@ -34,150 +35,175 @@ func InitPool()(m *SqlModel){
 	dbname := ConfigCentor.GetValue("mysql", "databasename")
 	data_str := fmt.Sprintf("%s:%s@(%s:3306)/%s?charset=utf8", uid, pwd, ip, dbname)
 	tools.LogInfo("-----数据库连接----" + data_str)
-	m.db, err = sql.Open("mysql", data_str)
+	this.db, err = sql.Open("mysql", data_str)
 
 	if err != nil {
 		tools.LogError("mysql InitSql error:" + err.Error())
 	}
 
-	m.db.SetMaxOpenConns(200)
-	m.db.SetMaxIdleConns(100)
-	err = m.db.Ping()
+	this.db.SetMaxOpenConns(11)
+	this.db.SetMaxIdleConns(9)
+	err = this.db.Ping()
 
 	if err != nil {
 		tools.LogError("mysql InitSql error:" + err.Error())
 	}
-	return m
+	return this
 
 }
 
 //模型初始化
-func (m *SqlModel) InitModel()*SqlModel{
-	m.tablename = ""
-	m.columnstr = "*"
-	m.where = " where 1 "
-	m.whereParam = make([]interface{},0)
-	m.pk = ""
-	m.orderby = ""
-	m.limit = ""
-	m.join = ""
-	return m
+func (this *SqlModel) Clear()*SqlModel{
+	this.tablename = ""
+	this.columnstr = "*"
+	this.where = " where 1 "
+	this.whereParam = make([]interface{},0)
+	this.pk = ""
+	this.orderby = ""
+	this.limit = ""
+	this.join = ""
+	this.clear = 0
+	return this
 }
 
 //设置数据表
-func (m *SqlModel) Table(tablename string)  *SqlModel{
-	m.tablename = tablename
-	return m
+func (this *SqlModel) Table(tablename string)  *SqlModel{
+	if this.clear > 0 {
+		this.Clear()
+	}
+	this.tablename = tablename
+	return this
 }
 
 /**
 设置where条件
 接收类型 string、map、struct 三种类型数据
  */
-func (m *SqlModel) Where(params interface{},args ... interface{}) *SqlModel {
+func (this *SqlModel) Where(params interface{},args ... interface{}) *SqlModel {
+	if this.clear > 0 {
+		this.Clear()
+	}
 	v := reflect.ValueOf(params)
 	if v.Kind() == reflect.Map {
 		p := params.(map[string]interface{})
 		for key,val := range p{
-			m.where += " AND `" + key + "`=? "
-			m.whereParam = append(m.whereParam,val)
+			this.where += " AND `" + key + "`=? "
+			this.whereParam = append(this.whereParam,val)
 		}
 	} else if v.Kind() == reflect.Struct {
 
 	} else if v.Kind() == reflect.String {
-		m.where += " AND `" + params.(string) + "`" + args[0].(string) + "? "
-		m.whereParam = append(m.whereParam,args[1])
+		this.where += " AND `" + params.(string) + "`" + args[0].(string) + "? "
+		this.whereParam = append(this.whereParam,args[1])
 	}
-	return m
+	return this
 }
 
 /**
 设置查询字段
  */
-func (m *SqlModel) Field(columnstr ... string) *SqlModel{
-	if len(columnstr) == 0 {
-		m.columnstr = "*"
-	}else {
-		m.columnstr = strings.Join(columnstr,",")
+func (this *SqlModel) Field(columnstr ... string) *SqlModel{
+	if this.clear > 0 {
+		this.Clear()
 	}
-	return m
+	if len(columnstr) == 0 {
+		this.columnstr = "*"
+	}else {
+		this.columnstr = strings.Join(columnstr,",")
+	}
+	return this
 }
 
 /**
 设置主键
  */
-func (m *SqlModel) SetPk(pk string) *SqlModel {
-	m.pk = pk
-	return m
+func (this *SqlModel) SetPk(pk string) *SqlModel {
+	if this.clear > 0 {
+		this.Clear()
+	}
+	this.pk = pk
+	return this
 }
 
 /**
 设置排序
  */
-func (m *SqlModel) OrderBy(params ... string) *SqlModel {
-	m.orderby = " ORDER BY "
-	m.orderby += strings.Join(params,",")
-	return m
+func (this *SqlModel) OrderBy(params ... string) *SqlModel {
+	if this.clear > 0 {
+		this.Clear()
+	}
+	this.orderby = " ORDER BY "
+	this.orderby += strings.Join(params,",")
+	return this
 }
 
 /**
 原生sql排序
  */
-func (m *SqlModel) OrderByRaw(orderRawSql string) *SqlModel {
-	m.orderby = " ORDER BY " + orderRawSql
-	return m
+func (this *SqlModel) OrderByRaw(orderRawSql string) *SqlModel {
+	if this.clear > 0 {
+		this.Clear()
+	}
+	this.orderby = " ORDER BY " + orderRawSql
+	return this
 }
 
 /**
 联表
  */
-func (m *SqlModel) Join(table,condition string,joinType ... string) *SqlModel {
+func (this *SqlModel) Join(table,condition string,joinType ... string) *SqlModel {
+	if this.clear > 0 {
+		this.Clear()
+	}
 	if len(joinType) == 0 {
-		m.join += fmt.Sprintf(" LEFT JOIN %v ON %v ", table, condition)
-		return m
+		this.join += fmt.Sprintf(" LEFT JOIN %v ON %v ", table, condition)
+		return this
 	}
 	joinType[0] = strings.ToUpper(joinType[0])
 	switch joinType[0] {
 	case "LEFT":
-		m.join += fmt.Sprintf(" LEFT JOIN %v ON %v ", table, condition)
+		this.join += fmt.Sprintf(" LEFT JOIN %v ON %v ", table, condition)
 	case "RIGHT":
-		m.join += fmt.Sprintf("RIGHT JOIN %v ON %v", table, condition)
+		this.join += fmt.Sprintf("RIGHT JOIN %v ON %v", table, condition)
 	case "INNER":
-		m.join += fmt.Sprintf("INNER JOIN %v ON %v", table, condition)
+		this.join += fmt.Sprintf("INNER JOIN %v ON %v", table, condition)
 	case "FULLJOIN":
-		m.join += fmt.Sprintf("FULL JOIN %v ON %v", table, condition)
+		this.join += fmt.Sprintf("FULL JOIN %v ON %v", table, condition)
 	default:
-		m.join += fmt.Sprintf(" LEFT JOIN %v ON %v ", table, condition)
+		this.join += fmt.Sprintf(" LEFT JOIN %v ON %v ", table, condition)
 	}
-	return m
+	return this
 }
 
 /**
 结果条数限制
  */
-func (m *SqlModel) Limit(size ...int64) *SqlModel {
+func (this *SqlModel) Limit(size ...int64) *SqlModel {
+	if this.clear > 0 {
+		this.Clear()
+	}
 	var end int64
 	start := size[0]
 	if len(size) > 1 {
 		end = size[1]
-		m.limit = fmt.Sprintf(" LIMIT %d,%d ",start,end)
-		return m
+		this.limit = fmt.Sprintf(" LIMIT %d,%d ",start,end)
+		return this
 	}
-	m.limit = fmt.Sprintf(" LIMIT %d ",start)
-	return m
+	this.limit = fmt.Sprintf(" LIMIT %d ",start)
+	return this
 }
 
-func (m *SqlModel) Create(param map[string] interface{}) (num int64, err error){
-	if m.db == nil {
-		m.InitModel()
+func (this *SqlModel) Create(param map[string] interface{}) (num int64, err error){
+	this.clear = 1
+	if this.db == nil {
 		return 0, errors.New("mysql not connect")
 	}
 	var keys []interface{}
 	var values []interface{}
 	var preFlagArr []interface{}
 
-	/*if len(m.pk) != 0 {
-		delete(param,m.pk)
+	/*if len(this.pk) != 0 {
+		delete(param,this.pk)
 	}*/
 	for k,v := range param{
 		keys = append(keys,k)
@@ -189,22 +215,21 @@ func (m *SqlModel) Create(param map[string] interface{}) (num int64, err error){
 	preFlag := tools.SliceToString(preFlagArr,flag)
 
 
-	sql := "INSERT INTO " + m.tablename + "(" + columns + ") values(" + preFlag + ")"
+	sql := "INSERT INTO " + this.tablename + "(" + columns + ") values(" + preFlag + ")"
 	// INSERT INTO table(colume1,colume2,colume3) values(?,?,?)
-	num, err = m.Insert(sql,values ...)
+	num, err = this.Insert(sql,values ...)
 
-	m.InitModel()
 	return num, err
 }
 
-func (m *SqlModel) Insert(sql string,values ... interface{})(int64, error) {
-	if m.db == nil {
-		m.InitModel()
+func (this *SqlModel) Insert(sql string,values ... interface{})(int64, error) {
+	this.clear = 1
+	if this.db == nil {
 		return 0,errors.New("db is Null")
 	}
 
 	//sql INSERT INTO table(colume1,colume2,colume3) values(?,?,?)
-	dbi, err := m.db.Prepare(sql)
+	dbi, err := this.db.Prepare(sql)
 	defer dbi.Close()
 	dbi.Close()
 
@@ -212,7 +237,6 @@ func (m *SqlModel) Insert(sql string,values ... interface{})(int64, error) {
 	tools.LogInfo(values ...)
 	if err != nil {
 		tools.LogError("Insert error: ", err.Error())
-		m.InitModel()
 		return 0, err
 	}
 
@@ -221,19 +245,18 @@ func (m *SqlModel) Insert(sql string,values ... interface{})(int64, error) {
 
 	if err != nil {
 		tools.LogError("Insert error: ", err.Error())
-		m.InitModel()
 		return 0, err
 	}
 
 	id, err := res.LastInsertId()
 
-	m.InitModel()
 	return id, err
 }
 
-func (m *SqlModel) Save(data map[string] interface{}) (int64, error) {
+func (this *SqlModel) Save(data map[string] interface{}) (int64, error) {
+	this.clear = 1
 	//构造sql语句
-	// UPDATE table set colume1=?,colume2=?,colume3=? + m.where
+	// UPDATE table set colume1=?,colume2=?,colume3=? + this.where
 	var setFileds string
 	var vals []interface{}
 	num := 0
@@ -247,30 +270,28 @@ func (m *SqlModel) Save(data map[string] interface{}) (int64, error) {
 	}
 
 	//接上where参数
-	for _,v1 := range m.whereParam {
+	for _,v1 := range this.whereParam {
 		vals = append(vals,v1)
 	}
 
-	sql := "UPDATE " + m.tablename + " SET " + setFileds + m.where
-	RowsAffected, err := m.Update(sql,vals ...)
+	sql := "UPDATE " + this.tablename + " SET " + setFileds + this.where
+	RowsAffected, err := this.Update(sql,vals ...)
 
-	m.InitModel()
 	return RowsAffected, err
 }
 
-func (m *SqlModel) Update(sql string, values ...interface{}) (int64, error) {
-	if m.db == nil {
-		m.InitModel()
+func (this *SqlModel) Update(sql string, values ...interface{}) (int64, error) {
+	this.clear = 1
+	if this.db == nil {
 		return 0, errors.New("db is Null")
 	}
-	dbi, err := m.db.Prepare(sql)
+	dbi, err := this.db.Prepare(sql)
 	defer dbi.Close()
 
 	tools.LogInfo(sql)
 	tools.LogInfo(values ...)
 	if err != nil {
 		tools.LogError("UPDATE error:", err.Error())
-		m.InitModel()
 		return 0, err
 	}
 
@@ -278,42 +299,39 @@ func (m *SqlModel) Update(sql string, values ...interface{}) (int64, error) {
 
 	if err != nil {
 		tools.LogError("UPDATE error:", err.Error())
-		m.InitModel()
 		return 0, err
 	}
 
 	RowsAffected, err := res.RowsAffected()
 
-	m.InitModel()
 	return RowsAffected, err
 }
 
-func (m *SqlModel)Delete() (int64, error) {
+func (this *SqlModel)Delete() (int64, error) {
+	this.clear = 1
 	//构造sql语句
 	// DELETE FROM  table  WHERE colume4=? and colume5 = ?
 
-	if m.where == " where 1 "{   //防止整个表删除
+	if this.where == " where 1 "{   //防止整个表删除
 		tools.LogError("Delete error:", "delete语句必须带有有效where条件")
-		m.InitModel()
 		return 0,nil
 	}
 
-	sql := "DELETE FROM " + m.tablename + m.where
-	RowsAffected, err := m.SqlDelete(sql,m.whereParam ...)
+	sql := "DELETE FROM " + this.tablename + this.where
+	RowsAffected, err := this.SqlDelete(sql,this.whereParam ...)
 
-	m.InitModel()
 	return RowsAffected, err
 }
 
-func (m *SqlModel) SqlDelete(sql string,vals ... interface{}) (int64, error){
-	dbi, err := m.db.Prepare(sql)
+func (this *SqlModel) SqlDelete(sql string,vals ... interface{}) (int64, error){
+	this.clear = 1
+	dbi, err := this.db.Prepare(sql)
 	defer dbi.Close()
 
 	tools.LogInfo(sql)
 	tools.LogInfo(vals ...)
 	if err != nil {
 		tools.LogError("DELETE error:", err.Error())
-		m.InitModel()
 		return 0, err
 	}
 
@@ -321,40 +339,41 @@ func (m *SqlModel) SqlDelete(sql string,vals ... interface{}) (int64, error){
 
 	if err != nil {
 		tools.LogError("DELETE error:", err.Error())
-		m.InitModel()
 		return 0, err
 	}
 
 	RowsAffected, err := res.RowsAffected()
 
-	m.InitModel()
 	return RowsAffected, err
 }
 
-func(m *SqlModel) FindAll()([]map[string]interface {}, error) {
-	sql := "SELECT " + m.columnstr + " FROM " + m.tablename + m.join + m.where + m.orderby + m.limit
-	rowslist,err := m.Query(sql,m.whereParam...)
+func(this *SqlModel) FindAll()([]map[string]interface {}, error) {
+	this.clear = 1
+	sql := "SELECT " + this.columnstr + " FROM " + this.tablename + this.join + this.where + this.orderby + this.limit
+	rowslist,err := this.Query(sql,this.whereParam...)
+	tools.LogInfo(rowslist)
 
-	m.InitModel()
 	return rowslist,err
 }
 
-func(m *SqlModel) FindOne()(map[string]interface{}, error) {
-	sql := "SELECT " + m.columnstr + " FROM " + m.tablename + m.join + m.where + m.orderby + m.limit
-	row,err := m.QueryRow(sql,m.whereParam...)
+func(this *SqlModel) FindOne()(map[string]interface{}, error) {
+	this.clear = 1
+	sql := "SELECT " + this.columnstr + " FROM " + this.tablename + this.join + this.where + this.orderby + this.limit
+	row,err := this.QueryRow(sql,this.whereParam...)
 
-	m.InitModel()
 	return row,err
 }
 
-func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interface {}, error) {
+func (this *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interface {}, error) {
+	this.clear = 1
 	tools.LogInfo(sql)
 	tools.LogInfo(vals ...)
-	dbi,err := m.db.Prepare(sql)
+	dbi,err := this.db.Prepare(sql)
+
+	rowslist := make([]map[string] interface{}, 0)
 	if err != nil {
 		tools.LogInfo(err.Error())
-		m.InitModel()
-		return nil, err
+		return rowslist, err
 	}
 
 	rows,err := dbi.Query(vals ...) //
@@ -362,16 +381,14 @@ func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interfac
 
 	if err != nil {
 		tools.LogInfo(err.Error())
-		m.InitModel()
-		return nil, err
+		return rowslist, err
 	}
 
 	//字典类型
 	//构造scanArgs、values两个数组，scanArgs的每个值指向values相应值的地址
 	columns, err := rows.Columns()
 	if err != nil {
-		m.InitModel()
-		return nil, err
+		return rowslist, err
 	}
 	valuePtrs := make([]interface{}, len(columns))  //地址
 	values := make([]interface{}, len(columns))  //值
@@ -380,7 +397,7 @@ func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interfac
 		valuePtrs[i] = &values[i]
 	}
 
-	rowslist := make([]map[string] interface{}, 0)
+	rowslist = make([]map[string] interface{}, 0)
 
 	for rows.Next() {
 		//将行数据保存到record字典
@@ -402,18 +419,17 @@ func (m *SqlModel) Query(sql string,vals ... interface{}) ([]map[string]interfac
 		rowslist = append(rowslist,record)
 	}
 
-	m.InitModel()
 	return rowslist, err
 
 }
 
-func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interface{}, error){
+func (this *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interface{}, error){
+	this.clear = 1
 	tools.LogInfo(sql)
 	tools.LogInfo(vals ...)
-	dbi,err := m.db.Prepare(sql)
+	dbi,err := this.db.Prepare(sql)
 	if err != nil {
 		tools.LogInfo(err.Error())
-		m.InitModel()
 		return nil, err
 	}
 
@@ -422,7 +438,6 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 
 	if err != nil {
 		tools.LogInfo(err.Error())
-		m.InitModel()
 		return nil, err
 	}
 
@@ -430,7 +445,6 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 	//构造scanArgs、values两个数组，scanArgs的每个值指向values相应值的地址
 	columns, err := rows.Columns()
 	if err != nil {
-		m.InitModel()
 		return nil, err
 	}
 	valuePtrs := make([]interface{}, len(columns))  //地址
@@ -445,7 +459,6 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 		//将行数据保存到record字典
 		err = rows.Scan(valuePtrs...)
 		if err != nil {
-			m.InitModel()
 			return nil,err
 		}
 		for i, col := range values {
@@ -460,38 +473,35 @@ func (m *SqlModel) QueryRow(sql string,vals ... interface{})(map[string]interfac
 			}
 
 		}
-		break
+		rows.Close()
 	}
 
-	m.InitModel()
 	return record, err
 }
 
-func (m *SqlModel) Count()(int64, error){
-	m.columnstr = "count(*)"
-	sql := "SELECT " + m.columnstr + " FROM " + m.tablename + m.join + m.where
-	dbi,err := m.db.Prepare(sql)
+func (this *SqlModel) Count()(int64, error){
+	this.clear = 1
+	this.columnstr = "count(*)"
+	sql := "SELECT " + this.columnstr + " FROM " + this.tablename + this.join + this.where
+	dbi,err := this.db.Prepare(sql)
 	defer dbi.Close()
 	if err != nil {
 		tools.LogInfo(err.Error())
-		m.InitModel()
 		return 0, err
 	}
 
 	var count int64
-	err = dbi.QueryRow(m.whereParam ...).Scan(&count)
+	err = dbi.QueryRow(this.whereParam ...).Scan(&count)
 
 	if err != nil {
 		tools.LogInfo(err.Error())
-		m.InitModel()
 		return 0, err
 	}
-	m.InitModel()
 	return count,err
 }
 
-func (m *SqlModel) DbClose() {
-	m.db.Close()
+func (this *SqlModel) DbClose() {
+	this.db.Close()
 }
 
 

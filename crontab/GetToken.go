@@ -3,6 +3,8 @@ package crontab
 import (
 	"updatetoken/tools"
 	"time"
+	"goini"
+	"encoding/json"
 )
 
 type GetToken struct {
@@ -13,8 +15,10 @@ type GetToken struct {
 }
 
 func (this *GetToken) AttrInit(){
-	this.SIGNKEY = "0a5aabec2a2b11e786d30025b3a90ab6"
-	this.ACCESS_TOKEN_INVALID = 40001
+	ConfigCentor := goini.SetConfig("./config/config.ini")
+	signkey := ConfigCentor.GetValue("gettoken", "signkey")
+	this.SIGNKEY = signkey
+	this.ACCESS_TOKEN_INVALID = 41001
 	this.ACCESS_TOKEN_EXPIRES_HINT = 42001
 	this.COMPONENTA_ACCESS_TOKEN_INVALID = 41001
 }
@@ -129,15 +133,116 @@ func (this *GetToken) updateAccessToken(appId,appSecret string)(string,error) {
 		return "",err
 	}
 
-	data := make(map[string]interface{})
-	data["access_token"] = accessTokenObj["access_token"]
-	data["access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
-	_,err = pool.Table("wechat").Where("appid","=",appId).Save(data)
+	if accessTokenObj["access_token"] != nil {
+		data := make(map[string]interface{})
+		data["access_token"] = accessTokenObj["access_token"]
+		data["access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
+		_,err = pool.Table("wechat").Where("appid","=",appId).Save(data)
+		if err != nil {
+			tools.LogError("updateAccessToken Error:",err.Error())
+			return "",err
+		}
+
+		return data["access_token"].(string),err
+	}
+	return "",err
+
+}
+
+/**
+获取三方平台component_access_token
+ */
+func (this *GetToken) GetComponentAccessToken(appId,appSecret,ticket string)(string,error){
+	tools.LogInfo("---------------GetComponentAccessToken----------------")
+	url := "https://api.weixin.qq.com/cgi-bin/component/api_component_token"
+	postData := make(map[string]interface{})
+	postData["component_appid"] = appId
+	postData["component_appsecret"] = appSecret
+	postData["component_verify_ticket"] = ticket
+	postDataJson,err := json.Marshal(postData)
 	if err != nil {
-		tools.LogError("updateAccessToken Error:",err.Error())
+		tools.LogError("Json Marshal Error:",err.Error())
+	}
+	res,err := tools.HttpPost(url,string(postDataJson))
+	if err != nil {
+		tools.LogError("GetComponentAccessToken Error:" ,err.Error())
+		return "",err
+	}
+	return res,err
+}
+
+/**
+获取三方平台预授权码pre_auth_code
+ */
+func (this *GetToken) GetPreAuthCode(componentAccessToken,componentAppId,componentAppSecret,componentVerifyTicket string)(string,error){
+	tools.LogInfo("---------------GetPreAuthCode----------------")
+	url := "https://api.weixin.qq.com/cgi-bin/component/api_create_preauthcode?component_access_token=" + componentAccessToken
+	postData := make(map[string]interface{})
+	postData["component_appid"] = componentAppId
+	postDataJson,err := json.Marshal(postData)
+	if err != nil {
+		tools.LogError("Json Marshal Error:",err.Error())
+	}
+	res,err := tools.HttpPost(url,string(postDataJson))
+	if err != nil {
+		tools.LogError("GetPreAuthCode Error:" ,err.Error())
 		return "",err
 	}
 
-	return data["access_token"].(string),err
+	//请求数据转换成map
+	resObj,err := tools.Obj2mapObj(res)
+	if err != nil {
+		tools.LogError("Obj2mapObj Error:",err.Error())
+		return "",err
+	}
+
+	if resObj["errcode"] != nil && (resObj["errcode"].(float64) == this.ACCESS_TOKEN_INVALID || resObj["errcode"].(float64) == this.ACCESS_TOKEN_EXPIRES_HINT || resObj["errcode"].(float64) == this.COMPONENTA_ACCESS_TOKEN_INVALID) && componentAppId != "" && componentAppSecret != "" {
+		componentAccessToken,err = this.updateComponentAccessToken(componentAppId,componentAppSecret,componentVerifyTicket)
+		if err != nil {
+			tools.LogError("updateComponentAccessToken Error:",err.Error())
+			return "",err
+		}
+		url = "https://api.weixin.qq.com/cgi-bin/component/api_create_preauthcode?component_access_token=" + componentAccessToken
+		res,err = tools.HttpPost(url,string(postDataJson))
+		if err != nil {
+			tools.LogError("GetApiTicket Error:" ,err.Error())
+			return "",err
+		}
+	}
+	return res,err
+}
+
+/**
+更新第三方component_access_token
+ */
+func (this *GetToken) updateComponentAccessToken(componentAppId,componentAppSecret,componentVerifyTicket string)(string,error) {
+	componentAccessToken,err := this.GetComponentAccessToken(componentAppId,componentAppSecret,componentVerifyTicket)
+	if err != nil {
+		tools.LogError("updateComponentAccessToken Error:",err.Error())
+		return "",err
+	}
+
+	componentAccessTokenObj,err := tools.Obj2mapObj(componentAccessToken)
+	if err != nil {
+		tools.LogError("Obj2mapObj Error:",err.Error())
+		return "",err
+	}
+
+	if componentAccessTokenObj["component_access_token"] != nil {
+		data := make(map[string]interface{})
+		data["component_access_token"] = componentAccessTokenObj["component_access_token"]
+		data["component_access_token_expires_in"] = componentAccessTokenObj["expires_in"]
+		data["component_access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
+		_,err = pool.Table("wechat_component").Where("component_appid","=",componentAppId).Save(data)
+		if err != nil {
+			tools.LogError("updateComponentAccessToken Error:",err.Error())
+			return "",err
+		}
+
+		return data["component_access_token"].(string),err
+	}
+
+	return "",err
 
 }
+

@@ -2,7 +2,6 @@ package main
 
 import (
 	"updatetoken/tools"
-	"updatetoken/model"
 	"github.com/robfig/cron"
 	"updatetoken/crontab"
 )
@@ -13,15 +12,15 @@ func main() {
 	defer tools.LogFlush()
 	tools.InitLog()
 
-	//初始化mysql连接
-	model.InitModel()
-	crontab.InitModel()
+	pool := crontab.InitModel()
+	defer pool.DbClose()
 
 	c := cron.New()
 	spec := "0 */5 * * * *"
 	c.AddFunc(spec, func() {
 		tools.LogInfo("cron running autoUpdateToken:")
 		updateTokenController := new(crontab.AutoUpdateToken)
+		updateTokenController.AttrInit()
 		updateTokenController.Index()
 	})
 

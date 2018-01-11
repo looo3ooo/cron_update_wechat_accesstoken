@@ -13,7 +13,8 @@ var pool *gomysql.SqlModel
 
 func InitModel(){
 	pool = gomysql.InitPool()
-	pool.InitModel()
+	defer pool.DbClose()
+	pool.Clear()
 }
 
 func MysqlCreateTest(){
