@@ -4,6 +4,8 @@ import (
 	"updatetoken/tools"
 	"github.com/robfig/cron"
 	"updatetoken/crontab"
+	"goini"
+	"fmt"
 )
 
 func main() {
@@ -16,7 +18,9 @@ func main() {
 	defer pool.DbClose()
 
 	c := cron.New()
-	spec := "0 */5 * * * *"
+	ConfigCentor := goini.SetConfig("./config/config.ini")
+	spec := ConfigCentor.GetValue("cron", "spec")
+	fmt.Println(spec)
 	c.AddFunc(spec, func() {
 		tools.LogInfo("cron running autoUpdateToken:")
 		updateTokenController := new(crontab.AutoUpdateToken)

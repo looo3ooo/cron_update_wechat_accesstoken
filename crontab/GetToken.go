@@ -251,3 +251,38 @@ func (this *GetToken) updateComponentAccessToken(componentAppId,componentAppSecr
 
 }
 
+func(this *GetToken)GetComponentJsApiTicket(wechatComponent map[string]interface{},appSecret string)(string,error){
+	tools.LogInfo("---------------getComponentJsApiTicket----------------")
+	url := "https://api.weixin.qq.com/cgi-bin/ticket/getticket?type=jsapi&access_token=" + wechatComponent["component_auth_access_token"].(string)
+	res,err := tools.HttpGet(url)
+	if err != nil {
+		tools.LogError("GetComponentJsApiTicket Error:" ,err.Error())
+	}
+
+	//请求数据转换成map
+	resObj,err := tools.Obj2mapObj(res)
+	if err != nil {
+		tools.LogError("Obj2mapObj Error:",err.Error())
+		return "",err
+	}
+
+	if resObj["errcode"] != nil && (resObj["errcode"].(float64) == this.ACCESS_TOKEN_INVALID || resObj["errcode"].(float64) == this.ACCESS_TOKEN_EXPIRES_HINT || resObj["errcode"].(float64) == this.COMPONENTA_ACCESS_TOKEN_INVALID) && wechatComponent["appid"] != "" && appSecret != "" {
+		componentAuthAccessToken,err = this.updateAuthTokenByRefresh(wechatComponent["component_access_token"],wechatComponent["component_appid"],wechatComponent["appid"],wechatComponent["component_auth_refresh_token"],appSecret,wechatComponent["component_verify_ticket"])
+		if err != nil {
+			tools.LogError("updateAuthTokenByRefresh Error:",err.Error())
+			return "",err
+		}
+		url = "https://api.weixin.qq.com/cgi-bin/ticket/getticket?type=jsapi&access_token=" + componentAuthAccessToken
+		res,err = tools.HttpGet(url)
+		if err != nil {
+			tools.LogError("GetComponentJsApiTicket Error:" ,err.Error())
+			return "",err
+		}
+	}
+	return res,err
+}
+
+func (this *GetToken) updateAuthTokenByRefresh  {
+
+}
+

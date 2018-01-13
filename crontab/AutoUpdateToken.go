@@ -89,6 +89,15 @@ func (this *AutoUpdateToken) Index(){
 				this.updateAppAccessToken(v,wechatAttribute)
 			}
 		}
+
+		//第三方平台token获取的jsapi_ticket
+		wechatComponent,_ := this.Model.Table("wechat_component").Where("psm_id","=",v["psm_id"]).FindOne()
+		tools.LogInfo(wechatComponent)
+		if len(wechatComponent) != 0  && this.timeToUnix(this.toString(v["component_jsapi_ticket_expires_time"])) + this.toInt64(v["component_jsapi_ticket_expires_in"]) - 30*60 < timeStamp {
+			if v["appid"] != nil && v["app_appid"].(string) != ""  && wechatComponent["component_auth_access_token"] != nil && wechatComponent["component_auth_access_token"].(string) != ""{
+				this.updateAppAccessToken(v,wechatAttribute,wechatComponent)
+			}
+		}
 	}
 
 	for _,ATTR := range this.COMPONENT_ATTRIBUTE {
@@ -115,7 +124,7 @@ func (this *AutoUpdateToken) Index(){
 
 //更新access_token
 func (this *AutoUpdateToken) updateAccessToken(wechat map[string]interface{},wechatAttribute map[string]interface{}) (string,error){
-	tools.LogInfo("超时重新获取accesstoken")
+	tools.LogInfo("超时重新获取accesstoken",wechat["psm_id"])
 	res,err := this.getToken.GetAccessToken(this.toString(wechat["appid"]),this.toString(wechatAttribute["secret"]))
 	if err != nil {
 		tools.LogError("GetAccessToken Error:",err.Error())
@@ -154,7 +163,7 @@ func (this *AutoUpdateToken) updateAccessToken(wechat map[string]interface{},wec
 更新app_access_token
  */
 func (this *AutoUpdateToken) updateAppAccessToken(wechat map[string]interface{},wechatAttribute map[string]interface{}){
-	tools.LogInfo("超时重新获取app_access_token")
+	tools.LogInfo("超时重新获取app_access_token",wechat["psm_id"])
 	res,err := this.getToken.GetAppAccessToken(this.toString(wechat["app_appid"]),this.toString(wechatAttribute["app_secret"]))
 	if err != nil {
 		tools.LogError("GetAppAccessToken Error:",err.Error())
@@ -190,7 +199,7 @@ func (this *AutoUpdateToken) updateAppAccessToken(wechat map[string]interface{},
 
 // 更新jsapi_ticket
 func (this *AutoUpdateToken) updateJsapiTicket(wechat map[string]interface{},wechatAttribute map[string]interface{}){
-	tools.LogInfo("超时重新获取jsapi_ticket")
+	tools.LogInfo("超时重新获取jsapi_ticket",wechat["psm_id"])
 
 	res,err := this.getToken.GetJsApiTicket(this.toString(wechat["access_token"]),this.toString(wechat["appid"]),this.toString(wechatAttribute["secret"]))
 	if err != nil {
@@ -226,7 +235,7 @@ func (this *AutoUpdateToken) updateJsapiTicket(wechat map[string]interface{},wec
 
 // 更新api_ticket
 func (this *AutoUpdateToken) updateApiTicket(wechat map[string]interface{},wechatAttribute map[string]interface{}) {
-	tools.LogInfo("超时重新获取api_ticket")
+	tools.LogInfo("超时重新获取api_ticket",wechat["psm_id"])
 
 	res,err := this.getToken.GetApiTicket(this.toString(wechat["access_token"]),this.toString(wechat["appid"]),this.toString(wechatAttribute["secret"]))
 	if err != nil {
@@ -331,6 +340,44 @@ func (this *AutoUpdateToken) updateComponentPreAuthCode(componentAccessToken,com
 	tools.LogInfo("更新",num,"条数据")
 }
 
+//第三方平台token更新jsapi_ticket
+func (this *AutoUpdateToken) updateComponentJsapiTicket(wechat,wechatAttribute,wechatComponent map[string]interface{}){
+	tools.LogInfo("超时重新获取component_jsapi_ticket",wechat["psm_id"])
+	res,err := this.getToken.GetAppAccessToken(this.toString(wechat["app_appid"]),this.toString(wechatAttribute["app_secret"]))
+	if err != nil {
+		tools.LogError("GetAppAccessToken Error:",err.Error())
+		return
+	}
+
+	//请求数据转换成map
+	resObj,err := tools.Obj2mapObj(res)
+	if err != nil {
+		tools.LogError("Obj2mapObj Error:",err.Error())
+		return
+	}
+
+	if resObj["errcode"] != nil && resObj["errcode"].(float64) != 0 {
+		tools.LogError("app_accesstoken远程调用失败:",resObj["errmsg"],":",resObj["errcode"])
+		return
+	}
+
+	//更新数据库
+	data := make(map[string]interface{})
+	data["app_access_token"] = resObj["access_token"].(string)
+	data["app_access_token_expires_in"] = resObj["expires_in"].(float64)
+	data["app_access_token_expires_time"] = time.Now().Format("2006-01-02 15:04:05")
+	num,err := this.Model.Table("wechat").Where("app_appid","=",wechat["app_appid"]).Save(data)
+
+	if err != nil {
+		tools.LogError("更新app_accesstoken失败：",err.Error())
+		return
+	}
+
+	tools.LogInfo("更新",num,"条数据")
+}
+
+
+
 func (this *AutoUpdateToken) toString(str interface{}) string{
 	var strString string
 	if str == nil {
@@ -364,11 +411,12 @@ func (this * AutoUpdateToken) toInt64(num interface{}) int64  {
 
 func (this *AutoUpdateToken) timeToUnix(timestamp interface{}) int64 {
 	var timeUnix int64
+	loc,_ := time.LoadLocation("Local")
 	if reflect.ValueOf(timestamp).Kind() == reflect.String {
-		timeParse,_ := time.Parse("2006-01-02 15:04:05",timestamp.(string))
+		timeParse,_ := time.ParseInLocation("2006-01-02 15:04:05",timestamp.(string),loc)
 		timeUnix = timeParse.Unix()
 	} else if reflect.ValueOf(timestamp).Kind() == reflect.Int64 {
-		timeParse,_ := time.Parse("2006-01-02 15:04:05",strconv.FormatInt(timestamp.(int64),10))
+		timeParse,_ := time.ParseInLocation("2006-01-02 15:04:05",strconv.FormatInt(timestamp.(int64),10),loc)
 		timeUnix = timeParse.Unix()
 	}
 	return timeUnix

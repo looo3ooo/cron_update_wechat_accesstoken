@@ -323,7 +323,6 @@ func(this *SqlModel) FindAll()([]map[string]interface {}, error) {
 	this.clear = 1
 	sql := "SELECT " + this.columnstr + " FROM " + this.tablename + this.join + this.where + this.orderby + this.limit
 	rowslist,err := this.Query(sql,this.whereParam...)
-	tools.LogInfo(rowslist)
 
 	return rowslist,err
 }

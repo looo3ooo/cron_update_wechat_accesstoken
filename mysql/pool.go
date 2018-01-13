@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"goini"
 	"test/tools"
+	"strconv"
 )
 
 type Pool struct {
@@ -28,8 +29,10 @@ func InitPool()(*Pool){
 		tools.LogError("mysql InitSql error:" + err.Error())
 	}
 
-	this.db.SetMaxOpenConns(30)
-	this.db.SetMaxIdleConns(20)
+	poolmaxopen,_ := strconv.Atoi(ConfigCentor.GetValue("mysql", "poolmaxopen"))
+	poolmaxidle,_ := strconv.Atoi(ConfigCentor.GetValue("mysql", "poolmaxidle"))
+	this.db.SetMaxOpenConns(poolmaxopen)
+	this.db.SetMaxIdleConns(poolmaxidle)
 	err = this.db.Ping()
 
 	if err != nil {
